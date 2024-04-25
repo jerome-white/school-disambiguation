@@ -2,6 +2,7 @@ import os
 import sys
 import functools as ft
 from pathlib import Path
+from dataclasses import dataclass
 from argparse import ArgumentParser
 from urllib.parse import ParseResult, urlunparse
 
@@ -9,6 +10,14 @@ import pandas as pd
 from googleapiclient.discovery import build
 
 from myutils import Logger
+
+@dataclass
+class SheetLocation:
+    name: str
+    target: str
+
+    def __str__(self):
+        return self.name
 
 #
 #
@@ -50,23 +59,24 @@ def sheets(sheet_id, token):
               .execute())
     assert sheet_id == gsheet['spreadsheetId']
 
-    for s in gsheet.get('sheets'):
-        doc_id = str(s['properties']['sheetId'])
-        yield url(sheet_id, doc_id)
+    for i in gsheet.get('sheets'):
+        s = i['properties']
+        u = url(sheet_id, str(s['sheetId']))
+        yield SheetLocation(s['title'], u)
 
-def extract(urls):
+def extract(locations):
     columns = {
         'me_school': 'response',
         'cleaned_school_name': 'target',
     }
     ncol = len(columns)
 
-    for u in urls:
+    for i in locations:
         df = (pd
-              .read_csv(u)
+              .read_csv(i.target)
               .filter(items=columns))
         if len(df.columns) == ncol:
-            Logger.info(u)
+            Logger.info(i)
             yield df.rename(columns=columns)
 
 if __name__ == "__main__":
