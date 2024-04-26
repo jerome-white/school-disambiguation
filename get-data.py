@@ -73,18 +73,16 @@ def func(incoming, outgoing):
 
     while True:
         location = incoming.get()
-        Logger.info(location)
-
         try:
             df = (pd
                   .read_csv(location.target, usecols=columns)
                   .dropna(how='all')
                   .fillna(pd.NA)
                   .rename(columns=columns))
+            Logger.info(location)
         except ValueError as err:
-            Logger.error(f'{location}: {err}')
             df = None
-
+            Logger.error(f'{location}: {err}')
         outgoing.put(df)
 
 def get(args):
