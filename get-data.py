@@ -69,15 +69,19 @@ def extract(locations):
         'me_school': 'response',
         'cleaned_school_name': 'target',
     }
-    ncol = len(columns)
 
     for i in locations:
-        df = (pd
-              .read_csv(i.target)
-              .filter(items=columns))
-        if len(df.columns) == ncol:
-            Logger.info(i)
-            yield df.rename(columns=columns)
+        try:
+            df = pd.read_csv(i.target, usecols=columns)
+        except ValueError as err:
+            Logger.error(f'{i}: {err}')
+            continue
+
+        Logger.info(i)
+        yield (df
+               .dropna(how='all')
+               .fillna(pd.NA)
+               .rename(columns=columns))
 
 if __name__ == "__main__":
     arguments = ArgumentParser()
@@ -87,6 +91,5 @@ if __name__ == "__main__":
     objs = extract(sheets(args.sheet_id, os.environ['GOOGLE_API_KEY']))
     df = (pd
           .concat(objs)
-          .dropna(how='all')
           .drop_duplicates())
     df.to_csv(sys.stdout, index=False)
