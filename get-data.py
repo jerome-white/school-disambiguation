@@ -74,15 +74,14 @@ def func(incoming, outgoing):
     while True:
         location = incoming.get()
         try:
+            Logger.info(location)
             df = (pd
                   .read_csv(location.target, usecols=columns)
-                  .dropna(how='all')
                   .fillna(pd.NA)
                   .rename(columns=columns))
-            Logger.info(location)
         except ValueError as err:
-            df = None
             Logger.error(f'{location}: {err}')
+            df = None
         outgoing.put(df)
 
 def get(args):
@@ -114,7 +113,5 @@ if __name__ == "__main__":
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    df = (pd
-          .concat(get(args))
-          .drop_duplicates())
+    df = pd.concat(get(args))
     df.to_csv(sys.stdout, index=False)
