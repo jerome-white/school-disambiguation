@@ -5,6 +5,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from argparse import ArgumentParser
 from urllib.parse import ParseResult, urlunparse
+from multiprocessing import Pool, Queue
 
 import pandas as pd
 from googleapiclient.discovery import build
@@ -64,32 +65,58 @@ def sheets(sheet_id, token):
         u = url(sheet_id, str(s['sheetId']))
         yield SheetLocation(s['title'], u)
 
-def extract(locations):
+def func(incoming, outgoing):
     columns = {
         'me_school': 'response',
         'cleaned_school_name': 'target',
     }
 
-    for i in locations:
-        try:
-            df = pd.read_csv(i.target, usecols=columns)
-        except ValueError as err:
-            Logger.error(f'{i}: {err}')
-            continue
+    while True:
+        location = incoming.get()
+        Logger.info(location)
 
-        Logger.info(i)
-        yield (df
-               .dropna(how='all')
-               .fillna(pd.NA)
-               .rename(columns=columns))
+        try:
+            df = (pd
+                  .read_csv(location.target, usecols=columns)
+                  .dropna(how='all')
+                  .fillna(pd.NA)
+                  .rename(columns=columns))
+        except ValueError as err:
+            Logger.error(f'{location}: {err}')
+            df = None
+
+        outgoing.put(df)
+
+def get(args):
+    incoming = Queue()
+    outgoing = Queue()
+    initargs = (
+        outgoing,
+        incoming,
+    )
+
+    with Pool(args.workers, func, initargs):
+        jobs = 0
+        for i in sheets(args.sheet_id, args.api_key):
+            outgoing.put(i)
+            jobs += 1
+
+        for _ in range(jobs):
+            df = incoming.get()
+            if df is not None:
+                yield df
 
 if __name__ == "__main__":
     arguments = ArgumentParser()
     arguments.add_argument('--sheet-id')
+    arguments.add_argument(
+        '--api-key',
+        default=os.environ.get('GOOGLE_API_KEY'),
+    )
+    arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    objs = extract(sheets(args.sheet_id, os.environ['GOOGLE_API_KEY']))
     df = (pd
-          .concat(objs)
+          .concat(get(args))
           .drop_duplicates())
     df.to_csv(sys.stdout, index=False)
