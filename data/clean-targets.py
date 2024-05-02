@@ -1,19 +1,24 @@
 import sys
 import csv
+import string
 from argparse import ArgumentParser
 
 import pandas as pd
 
+def standardize(word):
+    for i in string.punctuation:
+        word = word.replace(i, '')
+    parts = (word
+             .casefold()
+             .strip()
+             .split())
+
+    return ' '.join(parts)
+
 def gather(fp, target):
     reader = csv.DictReader(fp)
     for row in reader:
-        values = (row
-                  .get(target)
-                  .strip()
-                  .split())
-        row[target] = ' '.join(values)
-
-        yield row
+        yield { x: standardize(y) for (x, y) in row.items() }
 
 if __name__ == "__main__":
     arguments = ArgumentParser()
