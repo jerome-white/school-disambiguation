@@ -1,3 +1,4 @@
+emoji
 googleapiclient
 linktransformer
 pandas
